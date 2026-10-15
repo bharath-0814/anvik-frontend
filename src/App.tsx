@@ -19,9 +19,11 @@ import {
   getGraph, 
   getHealth, 
   getComplaints,
+  getAlerts,
   adaptBackendGraphToFrontend, 
   adaptBackendComplaintToRecord,
   BackendGraphMetadata, 
+  BackendAlertItem,
   API_BASE_URL 
 } from './services/api';
 import { ComplaintItem as IntakeComplaintItem } from './components/InvestigationIntakeScreen';
@@ -125,6 +127,7 @@ function DashboardContent() {
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [limitFilter, setLimitFilter] = useState<number>(200);
   const [selectedEntity, setSelectedEntity] = useState<GraphNodeData | null>(null);
+  const [liveAlerts, setLiveAlerts] = useState<BackendAlertItem[]>([]);
 
   // Fetch graph from real FastAPI backend (GET /api/graph)
   const fetchLiveGraph = async (statusParam?: string, limitParam?: number) => {
@@ -154,6 +157,16 @@ function DashboardContent() {
         }
       } catch (cErr) {
         console.warn('Backend complaints fetch failed, retaining current records:', cErr);
+      }
+
+      // Fetch fraud-pattern alerts from live backend (Aryan scoring v2.0 contract)
+      try {
+        const aRes = await getAlerts();
+        if (aRes?.alerts?.length) {
+          setLiveAlerts(aRes.alerts);
+        }
+      } catch (aErr) {
+        console.warn('Backend alerts fetch failed:', aErr);
       }
     } catch (err: any) {
       console.warn('Backend API connection check failed:', err);
@@ -367,7 +380,7 @@ function DashboardContent() {
         onReturnToIntake={handleReturnToComplaints}
         onOpenSearch={() => setIsFilterSlidebarOpen(true)}
         onOpenAlerts={() => handleToggleDrawer('summary')}
-        alertCount={3}
+        alertCount={dataSourceMode === 'live' && liveAlerts.length > 0 ? liveAlerts.length : 3}
         onDownloadReport={handleDownloadReport}
         onLogout={handleLogout}
       />
@@ -829,8 +842,8 @@ function DashboardContent() {
               )}
               {activeDrawer === 'summary' && (
                 <InvestigationSummaryPanel
-                  nodes={nodes}
-                  edges={edges}
+                  nodes={dataSourceMode === 'live' && liveNodes.length > 0 ? liveNodes : nodes}
+                  edges={dataSourceMode === 'live' && liveEdges.length > 0 ? liveEdges : edges}
                   complaints={complaints}
                   onClose={() => setActiveDrawer(null)}
                   onDownloadReport={handleDownloadReport}

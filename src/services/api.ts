@@ -97,6 +97,59 @@ export interface BackendComplaintsResponse {
   complaints: BackendComplaintItem[];
 }
 
+export interface BackendAlertItem {
+  alert_id: string;
+  rule_id: string;
+  title: string;
+  priority: 'high' | 'medium' | 'low';
+  score: number;
+  created_at: string;
+  account_ids: string[];
+  vpas: string[];
+  txn_ids: string[];
+  linked_txn_ids: string[];
+  evidence: Record<string, any>;
+  explanation: string;
+  limitations: string;
+  alternative_explanations: string[];
+  would_clear_if: string[];
+  complaint_ids: string[];
+  related_alert_ids: string[];
+  ring_id?: string | null;
+  informational_only: boolean;
+}
+
+export interface BackendRingItem {
+  ring_id: string;
+  account_ids: string[];
+  alert_ids: string[];
+  highest_priority: 'high' | 'medium' | 'low';
+  highest_score?: number | null;
+}
+
+export interface BackendAlertsResponse {
+  dataset_id: string;
+  generated_at: string;
+  amount_unit: string;
+  count: number;
+  meta: Record<string, any>;
+  alerts: BackendAlertItem[];
+  rings: BackendRingItem[];
+  account_summaries: Array<{
+    account_id: string;
+    alert_ids: string[];
+    highest_priority: 'high' | 'medium' | 'low';
+    highest_score?: number | null;
+  }>;
+}
+
+export interface AlertFilters {
+  rule_id?: string;
+  priority?: string;
+  account_id?: string;
+  txn_id?: string;
+}
+
 /**
  * Health check probe (liveness)
  */
@@ -160,6 +213,27 @@ export async function getComplaints(accountId?: string): Promise<BackendComplain
   if (!res.ok) {
     const errorText = await res.text().catch(() => '');
     throw new Error(`Failed to fetch complaints (HTTP ${res.status}): ${errorText || res.statusText}`);
+  }
+  return res.json();
+}
+
+/**
+ * Fetch fraud-pattern alerts and ring clusters from backend (Aryan contract)
+ */
+export async function getAlerts(filters?: AlertFilters): Promise<BackendAlertsResponse> {
+  const params = new URLSearchParams();
+  if (filters?.rule_id) params.set('rule_id', filters.rule_id);
+  if (filters?.priority) params.set('priority', filters.priority);
+  if (filters?.account_id) params.set('account_id', filters.account_id);
+  if (filters?.txn_id) params.set('txn_id', filters.txn_id);
+
+  const queryString = params.toString();
+  const url = `${API_BASE_URL}/api/alerts${queryString ? `?${queryString}` : ''}`;
+
+  const res = await fetch(url);
+  if (!res.ok) {
+    const errorText = await res.text().catch(() => '');
+    throw new Error(`Failed to fetch alerts (HTTP ${res.status}): ${errorText || res.statusText}`);
   }
   return res.json();
 }

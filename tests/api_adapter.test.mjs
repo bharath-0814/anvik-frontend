@@ -253,3 +253,22 @@ test('buildComplaintsUrl formats query parameters correctly', () => {
   assert.equal(buildComplaintsUrl('https://anvik-backend.onrender.com', 'ACC0001'), 'https://anvik-backend.onrender.com/api/complaints?account_id=ACC0001');
   assert.equal(buildComplaintsUrl('http://127.0.0.1:8000/'), 'http://127.0.0.1:8000/api/complaints');
 });
+
+function buildAlertsUrl(baseUrl, filters) {
+  const params = new URLSearchParams();
+  if (filters?.rule_id) params.set('rule_id', filters.rule_id);
+  if (filters?.priority) params.set('priority', filters.priority);
+  if (filters?.account_id) params.set('account_id', filters.account_id);
+  if (filters?.txn_id) params.set('txn_id', filters.txn_id);
+  const qs = params.toString();
+  return `${baseUrl.replace(/\/+$/, '')}/api/alerts${qs ? `?${qs}` : ''}`;
+}
+
+test('buildAlertsUrl formats query parameters correctly', () => {
+  assert.equal(
+    buildAlertsUrl('https://anvik-backend.onrender.com', { rule_id: 'RAPID_ONWARD_TRANSFER', priority: 'high' }),
+    'https://anvik-backend.onrender.com/api/alerts?rule_id=RAPID_ONWARD_TRANSFER&priority=high'
+  );
+  assert.equal(buildAlertsUrl('http://127.0.0.1:8000/'), 'http://127.0.0.1:8000/api/alerts');
+});
+
