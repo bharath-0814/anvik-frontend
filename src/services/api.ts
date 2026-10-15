@@ -3,7 +3,7 @@
  * Connects frontend to the Anvik FastAPI / NetworkX backend.
  */
 
-import { GraphNodeData, GraphEdgeData } from '../types';
+import { GraphNodeData, GraphEdgeData, ComplaintRecord } from '../types';
 
 // Resolve base URL from Vite environment variable (default empty string for relative paths or mock fallback)
 export const API_BASE_URL: string = (
@@ -80,6 +80,23 @@ export interface GraphFilters {
   limit?: number;
 }
 
+export interface BackendComplaintItem {
+  complaint_id: string;
+  victim_account_id: string;
+  victim_vpa: string;
+  txn_id: string;
+  amount_inr?: number | null;
+  beneficiary_account_id?: string | null;
+  beneficiary_vpa?: string | null;
+  complaint_date?: string | null;
+  status: string;
+}
+
+export interface BackendComplaintsResponse {
+  total_count: number;
+  complaints: BackendComplaintItem[];
+}
+
 /**
  * Health check probe (liveness)
  */
@@ -125,6 +142,59 @@ export async function getGraph(filters?: GraphFilters): Promise<BackendGraphResp
     throw new Error(`Failed to fetch graph (HTTP ${res.status}): ${errorText || res.statusText}`);
   }
   return res.json();
+}
+
+/**
+ * Fetch preloaded synthetic complaints from backend
+ */
+export async function getComplaints(accountId?: string): Promise<BackendComplaintsResponse> {
+  const params = new URLSearchParams();
+  if (accountId) {
+    params.set('account_id', accountId);
+  }
+
+  const queryString = params.toString();
+  const url = `${API_BASE_URL}/api/complaints${queryString ? `?${queryString}` : ''}`;
+
+  const res = await fetch(url);
+  if (!res.ok) {
+    const errorText = await res.text().catch(() => '');
+    throw new Error(`Failed to fetch complaints (HTTP ${res.status}): ${errorText || res.statusText}`);
+  }
+  return res.json();
+}
+
+/**
+ * Adapt backend complaint record to frontend ComplaintRecord
+ */
+export function adaptBackendComplaintToRecord(item: BackendComplaintItem): ComplaintRecord {
+  const dateFormatted = item.complaint_date
+    ? new Date(item.complaint_date).toLocaleDateString('en-IN', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+      })
+    : '15 Oct 2026';
+
+  return {
+    id: item.complaint_id,
+    complaintRef: `NCRP-${item.complaint_id}`,
+    date: dateFormatted,
+    shortDescription: `Disputed transfer of ₹${(item.amount_inr || 0).toLocaleString('en-IN')} to ${
+      item.beneficiary_vpa || item.beneficiary_account_id || 'unlinked beneficiary'
+    }`,
+    category: 'UPI Dispute',
+    disputeAmount: item.amount_inr || 0,
+    relatedAccountId: item.victim_account_id,
+    relatedAccountUpi: item.victim_vpa,
+    relatedBeneficiaryUpi: item.beneficiary_vpa || undefined,
+    relatedTxnUtr: item.txn_id,
+    riskLevel: 'HIGH',
+    status: 'under_investigation',
+    analystNotes: `Reported synthetic complaint against transaction ${item.txn_id}. Beneficiary: ${
+      item.beneficiary_account_id || 'unknown'
+    }.`,
+  };
 }
 
 /**

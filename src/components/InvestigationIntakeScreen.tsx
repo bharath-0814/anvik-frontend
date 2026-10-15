@@ -75,11 +75,13 @@ const DEFAULT_COMPLAINTS: ComplaintItem[] = [
 interface InvestigationIntakeScreenProps {
   onLoadGraph: (transactionId: string, deviceId: string, caseId: string) => void;
   isLoading?: boolean;
+  complaintItems?: ComplaintItem[];
 }
 
 export const InvestigationIntakeScreen: React.FC<InvestigationIntakeScreenProps> = ({
   onLoadGraph,
   isLoading = false,
+  complaintItems,
 }) => {
   const [activeTab, setActiveTab] = useState<'all' | 'saved'>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -91,6 +93,10 @@ export const InvestigationIntakeScreen: React.FC<InvestigationIntakeScreenProps>
   const [manualTxn, setManualTxn] = useState('UPI260915084127');
   const [manualDev, setManualDev] = useState('ANDR_09F2');
   const [manualCase, setManualCase] = useState('NCRP-2026-0841');
+
+  const complaintsList = useMemo(() => {
+    return complaintItems && complaintItems.length > 0 ? complaintItems : DEFAULT_COMPLAINTS;
+  }, [complaintItems]);
 
   const handleRefresh = () => {
     setIsRefreshing(true);
@@ -106,14 +112,14 @@ export const InvestigationIntakeScreen: React.FC<InvestigationIntakeScreenProps>
   };
 
   const filteredComplaints = useMemo(() => {
-    return DEFAULT_COMPLAINTS.filter((c) => {
+    return complaintsList.filter((c) => {
       const matchesSearch =
         c.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
         c.transactionReference.toLowerCase().includes(searchQuery.toLowerCase());
       const matchesStatus = statusFilter === 'all' || c.status === statusFilter;
       return matchesSearch && matchesStatus;
     });
-  }, [searchQuery, statusFilter]);
+  }, [complaintsList, searchQuery, statusFilter]);
 
   return (
     <div className="w-full h-full bg-[#FBF9F4] text-slate-800 flex flex-col overflow-y-auto select-none p-6 sm:p-10">
@@ -173,7 +179,7 @@ export const InvestigationIntakeScreen: React.FC<InvestigationIntakeScreenProps>
                     : 'bg-slate-100 text-slate-500'
                 }`}
               >
-                5
+                {complaintsList.length}
               </span>
               {activeTab === 'all' && (
                 <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#007065] rounded-full" />

@@ -187,3 +187,69 @@ test('adaptBackendGraphToFrontend handles empty graph response safely', () => {
   assert.equal(adapted.edges.length, 0);
   assert.equal(adapted.metadata.node_count, 0);
 });
+
+function adaptBackendComplaintToRecord(item) {
+  const dateFormatted = item.complaint_date
+    ? new Date(item.complaint_date).toLocaleDateString('en-IN', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+      })
+    : '15 Oct 2026';
+
+  return {
+    id: item.complaint_id,
+    complaintRef: `NCRP-${item.complaint_id}`,
+    date: dateFormatted,
+    shortDescription: `Disputed transfer of ₹${(item.amount_inr || 0).toLocaleString('en-IN')} to ${
+      item.beneficiary_vpa || item.beneficiary_account_id || 'unlinked beneficiary'
+    }`,
+    category: 'UPI Dispute',
+    disputeAmount: item.amount_inr || 0,
+    relatedAccountId: item.victim_account_id,
+    relatedAccountUpi: item.victim_vpa,
+    relatedBeneficiaryUpi: item.beneficiary_vpa || undefined,
+    relatedTxnUtr: item.txn_id,
+    riskLevel: 'HIGH',
+    status: 'under_investigation',
+    analystNotes: `Reported synthetic complaint against transaction ${item.txn_id}. Beneficiary: ${
+      item.beneficiary_account_id || 'unknown'
+    }.`,
+  };
+}
+
+function buildComplaintsUrl(baseUrl, accountId) {
+  const params = new URLSearchParams();
+  if (accountId) params.set('account_id', accountId);
+  const qs = params.toString();
+  return `${baseUrl.replace(/\/+$/, '')}/api/complaints${qs ? `?${qs}` : ''}`;
+}
+
+test('adaptBackendComplaintToRecord maps backend complaint to frontend record', () => {
+  const backendComplaint = {
+    complaint_id: 'CMP0001',
+    victim_account_id: 'ACC0001',
+    victim_vpa: 'aarav.nair1@synaxis',
+    txn_id: 'TXN000102',
+    amount_inr: 308.86,
+    beneficiary_account_id: 'ACC0157',
+    beneficiary_vpa: 'isha.kumar@synaxis',
+    complaint_date: '2026-09-03T18:19:51+00:00',
+    status: 'UNDER_INVESTIGATION',
+  };
+
+  const record = adaptBackendComplaintToRecord(backendComplaint);
+  assert.equal(record.id, 'CMP0001');
+  assert.equal(record.complaintRef, 'NCRP-CMP0001');
+  assert.equal(record.disputeAmount, 308.86);
+  assert.equal(record.relatedAccountId, 'ACC0001');
+  assert.equal(record.relatedAccountUpi, 'aarav.nair1@synaxis');
+  assert.equal(record.relatedBeneficiaryUpi, 'isha.kumar@synaxis');
+  assert.equal(record.relatedTxnUtr, 'TXN000102');
+  assert.equal(record.status, 'under_investigation');
+});
+
+test('buildComplaintsUrl formats query parameters correctly', () => {
+  assert.equal(buildComplaintsUrl('https://anvik-backend.onrender.com', 'ACC0001'), 'https://anvik-backend.onrender.com/api/complaints?account_id=ACC0001');
+  assert.equal(buildComplaintsUrl('http://127.0.0.1:8000/'), 'http://127.0.0.1:8000/api/complaints');
+});

@@ -18,10 +18,13 @@ import { downloadInvestigationReport } from './utils/reportGenerator';
 import { 
   getGraph, 
   getHealth, 
+  getComplaints,
   adaptBackendGraphToFrontend, 
+  adaptBackendComplaintToRecord,
   BackendGraphMetadata, 
   API_BASE_URL 
 } from './services/api';
+import { ComplaintItem as IntakeComplaintItem } from './components/InvestigationIntakeScreen';
 import { 
   NETWORK_9_NODES, 
   NETWORK_9_EDGES, 
@@ -141,6 +144,17 @@ function DashboardContent() {
       setLiveMetadata(adapted.metadata);
       setIsLiveConnected(true);
       setDataSourceMode('live');
+
+      // Fetch preloaded synthetic complaints from live backend
+      try {
+        const cRes = await getComplaints();
+        if (cRes?.complaints?.length) {
+          const adaptedComplaints = cRes.complaints.map(adaptBackendComplaintToRecord);
+          setComplaints(adaptedComplaints);
+        }
+      } catch (cErr) {
+        console.warn('Backend complaints fetch failed, retaining current records:', cErr);
+      }
     } catch (err: any) {
       console.warn('Backend API connection check failed:', err);
       setLiveGraphError(err?.message || 'Failed to connect to Anvik backend API');
@@ -172,6 +186,19 @@ function DashboardContent() {
     }
     return DEMO_COMPLAINTS;
   });
+
+  // Adapted complaint items for Intake screen
+  const complaintItemsForIntake: IntakeComplaintItem[] = useMemo(() => {
+    return complaints.map((c) => ({
+      id: c.complaintRef || c.id,
+      dateReceived: c.date,
+      transactionReference: c.relatedTxnUtr || activeTxnId,
+      deviceId: activeDevId,
+      status: (c.status === 'resolved' ? 'Resolved' : c.status === 'pending_review' ? 'In review' : 'Open') as 'Open' | 'In review' | 'Resolved',
+      riskScore: c.riskLevel === 'CRITICAL' ? '96' : c.riskLevel === 'HIGH' ? '88' : '—',
+      amount: c.disputeAmount,
+    }));
+  }, [complaints, activeTxnId, activeDevId]);
 
   // Selection & Freezing state
   const [selectedComplaint, setSelectedComplaint] = useState<ComplaintRecord | null>(null);
@@ -362,6 +389,7 @@ function DashboardContent() {
             <InvestigationIntakeScreen
               onLoadGraph={handleStartTrace}
               isLoading={isLoadingGraph}
+              complaintItems={complaintItemsForIntake}
             />
           </div>
         )}
